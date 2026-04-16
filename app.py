@@ -3,57 +3,7 @@ import ollama
 import time 
 
 # ==========================================
-# 1. HELPER FUNCTIONS (Metrics & Export)
-# ==========================================
-def get_sinhala_purity(text):
-    """Calculates the percentage of Sinhala characters in the text."""
-    if not text: return 0
-    # Count Sinhala unicode characters
-    sinhala_chars = sum(1 for c in text if '\u0D80' <= c <= '\u0DFF')
-    # Count total letters/numbers (excluding spaces and punctuation)
-    total_chars = sum(1 for c in text if c.isalnum() or '\u0D80' <= c <= '\u0DFF')
-    
-    if total_chars == 0: return 0
-    return int((sinhala_chars / total_chars) * 100)
-
-def sanitize_sinhala_output(text):
-    """
-    A post-processing filter to clean up common LLM Sinhala artifacts 
-    and grammatical slip-ups before saving to history.
-    """
-    corrections = {
-        "  ": " ",                 # Fix double spaces
-        " ,": ",",                  # Fix space before comma
-        " .": ".",                  # Fix space before full stop
-        "මම ...": "මම",            # Clean up weird hesitation dots
-        "ඔබගේ": "ඔබේ",              # Make it sound slightly more natural/conversational
-        "කළ හැක": "කරන්න පුළුවන්",  # Convert formal written to natural spoken
-        "අන්තර්ජාලය": "ඉන්ටර්නෙට්"   # Force natural colloquial term
-    }
-    
-    for error, fix in corrections.items():
-        text = text.replace(error, fix)
-        
-    return text
-
-def get_chat_download_string():
-    """Formats the chat history for downloading."""
-    chat_log = "Sinhala Chatbot - Offline Session Log\n" + "="*40 + "\n\n"
-    for msg in st.session_state.get("messages", []):
-        if msg["role"] != "system":
-            role_name = "User" if msg["role"] == "user" else "Assistant"
-            chat_log += f"{role_name}: {msg['content']}\n\n"
-    return chat_log
-
-# ==========================================
-# 2. UI CONFIGURATION
-# ==========================================
-st.set_page_config(page_title="Sinhala AI Assistant", page_icon="🇱🇰")
-st.title("Sinhala Tech & Local Assistant 🇱🇰")
-st.caption("Offline AI powered by OLLAMA (singemma-4B) | Optimized via In-Context Learning")
-
-# ==========================================
-# 3. THE HARDCODED "MINI-DATASET" (PERSONA & FEW-SHOT)
+# 1. THE HARDCODED "MINI-DATASET" (PERSONA & FEW-SHOT)
 # ==========================================
 SYSTEM_PROMPT = """
 You are a highly intelligent, friendly AI assistant designed specifically for Sri Lankan university students and professionals. 
@@ -81,16 +31,59 @@ HARDCODED_DATASET = [
     {"role": "assistant", "content": "Machine Learning (යන්ත්‍ර ඉගෙනුම) කියන්නේ Artificial Intelligence (AI) වල එක් ප්‍රධාන අංශයක්. මෙහිදී අපි පරිගණකයට විශාල දත්ත (data) ප්‍රමාණයක් ලබා දී, ඒ හරහා ස්වයංක්‍රීයව රටා හඳුනාගෙන තීරණ ගැනීමට එය පුහුණු කරනවා. උදාහරණයක් විදිහට YouTube සහ Netflix වල රෙකමන්ඩේෂන් (Recommendations) වැඩ කරන්නේ මේ තාක්ෂණයෙනුයි."},
     
     {"role": "user", "content": "Software Engineering ඉගෙන ගන්න හොඳම විදිහ මොකක්ද?"},
-    {"role": "assistant", "content": "Software Engineering ඉගෙන ගැනීමට හොඳම ක්‍රමය ප්‍රායෝගිකව කේතනය (Coding) කිරීමයි. මුලින්ම Python හෝ Java වැනි භාෂාවකින් ආරම්භ කරන්න. ඉන්පසු Data Structures සහ Algorithms ගැන ඉගෙන ගන්න. කුඩා Projects කිරීම මගින් ඔබේ දැනුම තවත් වර්ධනය කරගත හැක."}
+    {"role": "assistant", "content": "Software Engineering ඉගෙන ගැනීමට හොඳම ක්‍රමය ප්‍රායෝගිකව කේතනය (Coding) කිරීමයි. මුලින්ම Python හෝ Java වැනි භාෂාවකින් ආරම්භ කරන්න. ඉන්පසු Data Structures සහ Algorithms ගැන ඉගෙන ගන්න. කුඩා Projects කිරීම මගින් ඔබේ දැනුම තවත් වර්ධනය කරගත හැක."},
+
+    {"role": "user", "content": "ශ්‍රී ලංකාවේ සාම්ප්‍රදායික කෑම වර්ග කිහිපයක් නම් කරන්න."},
+    {"role": "assistant", "content": "ශ්‍රී ලංකාවට ආවේණික වූ ඉතා රසවත් සාම්ප්‍රදායික කෑම වර්ග රැසක් තිබෙනවා. ඒ අතරින් කිහිපයක් පහත දැක්වේ:\n* **කිරිබත්:** විශේෂ උත්සව අවස්ථාවලදී පිළියෙළ කරන ප්‍රධාන ආහාරයක්.\n* **ආප්ප සහ ඉඳිආප්ප:** උදෑසන හෝ රාත්‍රී ආහාරය සඳහා ඉතා ජනප්‍රියයි.\n* **කොත්තු රොටි:** ශ්‍රී ලංකාවේ වීදි ආහාර (street food) සංස්කෘතියේ ප්‍රධානතම අංගයක්.\n* **කැවුම් සහ කොකිස්:** සිංහල අලුත් අවුරුදු සමයේදී විශේෂයෙන් සාදන රසකැවිලි."}
 ]
 
 # ==========================================
-# 4. SIDEBAR: CONTROLS & USABILITY
+# 2. HELPER FUNCTIONS (Metrics, Sanitizer & Export)
 # ==========================================
+def get_sinhala_purity(text):
+    """Calculates the percentage of Sinhala characters in the text."""
+    if not text: return 0
+    sinhala_chars = sum(1 for c in text if '\u0D80' <= c <= '\u0DFF')
+    total_chars = sum(1 for c in text if c.isalnum() or '\u0D80' <= c <= '\u0DFF')
+    if total_chars == 0: return 0
+    return int((sinhala_chars / total_chars) * 100)
+
+def sanitize_sinhala_output(text):
+    """A post-processing filter to clean up common LLM Sinhala artifacts."""
+    corrections = {
+        "  ": " ",                 
+        " ,": ",",                  
+        " .": ".",                  
+        "මම ...": "මම",            
+        "ඔබගේ": "ඔබේ",              
+        "කළ හැක": "කරන්න පුළුවන්",  
+        "අන්තර්ජාලය": "ඉන්ටර්නෙට්"   
+    }
+    for error, fix in corrections.items():
+        text = text.replace(error, fix)
+    return text
+
+def get_chat_download_string():
+    """Formats the chat history for downloading (excluding the hidden dataset)."""
+    chat_log = "Sinhala Chatbot - Offline Session Log\n" + "="*40 + "\n\n"
+    # Only export messages AFTER the hardcoded dataset
+    actual_conversation = st.session_state.get("messages", [])[len(HARDCODED_DATASET):]
+    
+    for msg in actual_conversation:
+        role_name = "User" if msg["role"] == "user" else "Assistant"
+        chat_log += f"{role_name}: {msg['content']}\n\n"
+    return chat_log
+
+# ==========================================
+# 3. UI CONFIGURATION & SIDEBAR
+# ==========================================
+st.set_page_config(page_title="Sinhala AI Assistant", page_icon="🇱🇰")
+st.title("Sinhala Tech & Local Assistant 🇱🇰")
+st.caption("Offline AI powered by OLLAMA (singemma-4B) | Optimized via In-Context Learning")
+
 st.sidebar.header("⚙️ Model Controls")
 st.sidebar.write("Adjust inference dynamically:")
 
-# Defaults optimized for factual but natural chat
 user_temp = st.sidebar.slider("Temperature (Creativity)", 0.0, 1.0, 0.3, 0.1)
 user_top_p = st.sidebar.slider("Top-P (Focus)", 0.1, 1.0, 0.8, 0.1)
 
@@ -101,6 +94,16 @@ if st.sidebar.button("🗑️ Clear Conversation"):
     st.session_state["messages"] = list(HARDCODED_DATASET)
     st.rerun()
 
+if st.sidebar.button("🔄 Regenerate Last Response"):
+    # Ensure there is an actual user conversation to regenerate
+    if len(st.session_state["messages"]) > len(HARDCODED_DATASET):
+        # Remove the AI's last response from memory
+        if st.session_state["messages"][-1]["role"] == "assistant":
+            st.session_state["messages"].pop()
+        # Set a flag to trigger the generation loop
+        st.session_state["regenerate"] = True
+        st.rerun()
+
 st.sidebar.download_button(
     label="📥 Download Chat Log",
     data=get_chat_download_string(),
@@ -109,25 +112,40 @@ st.sidebar.download_button(
 )
 
 # ==========================================
-# 5. INITIALIZATION & UI RENDER
+# 4. INITIALIZATION & UI RENDER (Hidden State)
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state["messages"] = list(HARDCODED_DATASET)
 
-for msg in st.session_state["messages"]:
-    if msg["role"] != "system":
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+# Only display the actual user conversation, HIDE the hardcoded training dataset
+actual_conversation = st.session_state["messages"][len(HARDCODED_DATASET):]
+
+for msg in actual_conversation:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+        
+        # Draw metrics if they exist in the history
+        if "speed" in msg and "purity" in msg:
+            cols = st.columns(2)
+            cols[0].caption(f"⏱️ Speed: {msg['speed']}s")
+            cols[1].caption(f"📝 Sinhala Purity: {msg['purity']}%")
 
 # ==========================================
-# 6. CHAT INPUT & LOCAL INFERENCE
+# 5. CHAT INPUT & LOCAL INFERENCE
 # ==========================================
-if prompt := st.chat_input("මෙහි ටයිප් කරන්න... (Type your message here)"):
+prompt = st.chat_input("මෙහි ටයිප් කරන්න... (Type your message here)")
+
+# Trigger if the user types a new message OR clicks the regenerate button
+if prompt or st.session_state.get("regenerate"):
     
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    
-    st.session_state["messages"].append({"role": "user", "content": prompt})
+    # If it's a NEW prompt, show it on screen and save it to history
+    if prompt:
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        st.session_state["messages"].append({"role": "user", "content": prompt})
+    else:
+        # If we are regenerating, reset the flag (the user's message is already in history)
+        st.session_state["regenerate"] = False
 
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
@@ -137,8 +155,11 @@ if prompt := st.chat_input("මෙහි ටයිප් කරන්න... (Typ
         
         try:
             # --- CONTEXT LIMITER ---
-            # Keep the System Prompt (index 0) + the last 4 interactions to save VRAM
-            safe_context = [st.session_state["messages"][0]] + st.session_state["messages"][-4:]
+            # Extract only the user's actual conversation history
+            user_history = st.session_state["messages"][len(HARDCODED_DATASET):]
+            
+            # Combine the PERMANENT training dataset + the last 4 user interactions to save VRAM
+            safe_context = HARDCODED_DATASET + user_history[-4:]
             
             for chunk in ollama.chat(
                 model="Tharusha_Dilhara_Jayadeera/singemma",
@@ -147,7 +168,7 @@ if prompt := st.chat_input("මෙහි ටයිප් කරන්න... (Typ
                 options={
                     "temperature": user_temp,
                     "top_p": user_top_p,
-                    "repeat_penalty": 1.2 # Stops the stuttering loop
+                    "repeat_penalty": 1.25 # Aggressively kills token degeneration loops
                 }
             ):
                 token = chunk.get('message', {}).get('content', '')
@@ -169,9 +190,16 @@ if prompt := st.chat_input("මෙහි ටයිප් කරන්න... (Typ
             cols[0].caption(f"⏱️ Speed: {generation_time}s")
             cols[1].caption(f"📝 Sinhala Purity: {purity_score}%")
             
+            # Save the sanitized version AND the metrics to history!
+            st.session_state["messages"].append({
+                "role": "assistant", 
+                "content": cleaned_response,
+                "speed": generation_time,
+                "purity": purity_score
+            })
+            
         except Exception as e:
             st.error(f"Ollama Error: {e}. Please ensure Ollama is running offline.")
             cleaned_response = "Error connecting to local model."
-
-    # Save the sanitized version to history!
-    st.session_state["messages"].append({"role": "assistant", "content": cleaned_response})
+            # Save the error without metrics so it doesn't crash the render loop later
+            st.session_state["messages"].append({"role": "assistant", "content": cleaned_response})
